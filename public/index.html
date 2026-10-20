@@ -176,7 +176,6 @@ function endGame(){
   st.last={a,b,tier:T.name,tierIdx:st.tier,streak:prog.streak,nut:st.stats.nut,fire:st.stats.fire,res:a>b?'win':a<b?'loss':'draw',chal,code:'',codeP:null};
   save();
   queueResult(a,b,st.tier,st.stats.nut,prog.streak);
-  if(a>b) prefetchChallenge();
   sfx(300,0.4,'sawtooth',0.05);
 }
 
@@ -824,14 +823,29 @@ function drawBack(){
   txt('< BACK',b.x+b.w/2,b.y+b.h/2+1,14,'rgba(239,233,218,0.9)',DISPLAY,'400');
 }
 function mainLayout(){
-  const w=Math.min(vw-48,360), x=(vw-w)/2, g=10, sh=40, top=vh*0.3, avail=vh-18-top;
-  const bh=Math.max(40,Math.min(58,(avail-5*g-2*sh)/4));
+  const w=Math.min(vw-48,360), x=(vw-w)/2, g=10, sh=40, top=vh*0.36, avail=vh-18-top;
+  const bh=Math.max(44,Math.min(58,(avail-3*g-sh)/3));
   const L={}; let y=top;
-  for(const k of ['play','chal','board','online']){ L[k]={x,y,w,h:bh}; y+=bh+g; }
-  const w1=w*0.5-g/2, w2=w-w1-g;
-  L.nick={x,y,w:w1,h:sh}; L.rec={x:x+w1+g,y,w:w2,h:sh}; y+=sh+g;
-  L.set={x,y,w:w1,h:sh}; L.how={x:x+w1+g,y,w:w2,h:sh};
+  for(const k of ['play','online','board']){ L[k]={x,y,w,h:bh}; y+=bh+g; }
+  const sw=Math.min(150,(w-g)/2), tot=sw*2+g, sx=(vw-tot)/2;
+  L.rec={x:sx,y:y+6,w:sw,h:sh}; L.how={x:sx+sw+g,y:y+6,w:sw,h:sh};
+  L.nick={x:14,y:10,w:Math.min(170,vw-86),h:36};
+  L.set={x:vw-14-40,y:10,w:40,h:36};
   return L;
+}
+function onlineLayout(){
+  const w=Math.min(vw-48,360), x=(vw-w)/2, h=78, g=14, y0=vh*0.3;
+  return {quick:{x,y:y0,w,h}, friend:{x,y:y0+h+g,w,h}};
+}
+function drawGear(b){
+  rr(b.x,b.y,b.w,b.h,12); ctx.fillStyle='rgba(255,255,255,0.07)'; ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.35)'; ctx.stroke();
+  const cx0=b.x+b.w/2, cy0=b.y+b.h/2;
+  ctx.save(); ctx.translate(cx0,cy0); ctx.fillStyle='#efe9da';
+  for(let i=0;i<8;i++){ ctx.rotate(Math.PI/4); ctx.fillRect(-2.5,-10,5,5); }
+  ctx.beginPath(); ctx.arc(0,0,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgb(16,20,29)'; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
+  ctx.restore();
 }
 function bigBtn(b,label,sub,col,dim,fill){
   ctx.globalAlpha=dim?0.45:1;
@@ -863,7 +877,7 @@ function toggleSetting(k){
   save(); if(k==='snd'&&prog.snd) sfx(520,0.08,'triangle',0.05);
 }
 function overlay(){
-  ctx.fillStyle=(st.mode==='how'||st.mode==='board'||st.mode==='chal'||st.mode==='splash'||st.mode==='settings'||st.mode==='lobby'||(st.mode==='over'&&st.onlRes))?'rgb(16,20,29)':'rgba(16,20,29,0.92)'; ctx.fillRect(0,0,vw,vh);
+  ctx.fillStyle=(st.mode==='how'||st.mode==='board'||st.mode==='chal'||st.mode==='splash'||st.mode==='settings'||st.mode==='lobby'||st.mode==='online'||(st.mode==='over'&&st.onlRes))?'rgb(16,20,29)':'rgba(16,20,29,0.92)'; ctx.fillRect(0,0,vw,vh);
   const cx=vw/2, tw=Math.min(vw-48,360);
   if(st.mode==='splash'){
     const t=st.menuT, a=Math.min(1,t/0.35), e=1-Math.pow(1-Math.min(1,t/0.55),3), s=0.7+0.3*e;
@@ -909,18 +923,24 @@ function overlay(){
     txt('TAP TO START',cx,vh*0.93,Math.min(26,vw*0.065),'#fff',DISPLAY,'400');
     ctx.globalAlpha=1;
   } else if(st.mode==='menu'){
-    let y=vh*0.1;
+    let y=vh*0.19;
     txt('CAGE BALL',cx,y,Math.min(58,vw*0.15),C.me,DISPLAY,'400'); y+=Math.min(44,vw*0.11);
     wrap('3v3 street football. Two minutes. Most goals wins.',cx,y,tw,24,17,'rgba(239,233,218,0.85)','600');
-    const L=mainLayout(), hasW=!!prog.lw;
+    const L=mainLayout();
     bigBtn(L.play,'PLAY','Beat the CPU. Climb the levels.',C.me,false,'rgba(255,200,61,0.16)');
-    bigBtn(L.chal,hasW?(chalBusy?'MAKING LINK...':'CHALLENGE A FRIEND'):'INVITE A FRIEND',hasW?'Send your last win. Can they beat it?':'Send them the game link','rgba(239,233,218,0.55)');
+    bigBtn(L.online,'ONLINE',onlineOn()?'1v1 vs a random player or a friend':'Coming soon',onlineOn()?'rgba(239,233,218,0.55)':'rgba(239,233,218,0.25)',!onlineOn());
     bigBtn(L.board,'LEADERBOARD','See who is winning','rgba(239,233,218,0.55)');
-    bigBtn(L.online,'ONLINE 1V1',onlineOn()?'Play a friend live. Send a link.':'Coming soon',onlineOn()?'rgba(239,233,218,0.55)':'rgba(239,233,218,0.25)',!onlineOn());
-    smallBtn(L.nick,'YOU  '+(prog.nick||'SET YOUR NAME'),C.me);
+    smallBtn(L.nick,prog.nick||'SET YOUR NAME',C.me);
+    drawGear(L.set);
     smallBtn(L.rec,'RECORDS','#efe9da');
-    smallBtn(L.set,'SETTINGS','#efe9da');
     smallBtn(L.how,'HOW TO PLAY','#efe9da');
+  } else if(st.mode==='online'){
+    drawBack();
+    txt('ONLINE',cx,vh*0.17,Math.min(44,vw*0.115),C.me,DISPLAY,'400');
+    const O=onlineLayout();
+    bigBtn(O.quick,'QUICK MATCH','1v1 against a random player',C.me,false,'rgba(255,200,61,0.16)');
+    bigBtn(O.friend,'CHALLENGE A FRIEND','Send a link. Play them live.','rgba(239,233,218,0.55)');
+    wrap('More online modes are coming.',cx,O.friend.y+O.friend.h+34,tw,22,15,'rgba(239,233,218,0.5)','600');
   } else if(st.mode==='tiers'){
     drawBack();
     txt('CHOOSE LEVEL',cx,vh*0.15,Math.min(38,vw*0.098),C.me,DISPLAY,'400');
@@ -1021,6 +1041,16 @@ function overlay(){
     if(net.state==='err'){
       wrap(net.err,cx,vh*0.3,tw,26,19,'#efe9da','700');
       lb(B.cancel,'BACK','rgba(239,233,218,0.55)');
+    } else if(net.state==='searching'){
+      txt('FINDING AN OPPONENT...',cx,vh*0.3,Math.min(26,vw*0.065),'#fff',DISPLAY,'400');
+      txt(String(Math.max(0,Math.ceil(net.qT))),cx,vh*0.42,Math.min(80,vw*0.2),C.me,DISPLAY,'400');
+      lb(B.cancel,'CANCEL','rgba(239,233,218,0.55)');
+    } else if(net.state==='empty'){
+      txt('NO ONE IS ONLINE RIGHT NOW',cx,vh*0.3,Math.min(24,vw*0.06),'#fff',DISPLAY,'400');
+      wrap('Play the CPU, or send a friend a link.',cx,vh*0.36,tw,24,17,'rgba(239,233,218,0.85)','600');
+      lb(B.cpu,'PLAY THE CPU',C.me,'rgba(255,200,61,0.16)');
+      lb(B.share,'INVITE A FRIEND','rgba(239,233,218,0.55)');
+      lb(B.cancel,'BACK','rgba(239,233,218,0.55)');
     } else if(net.state==='ready'){
       txt(net.role==='host'?'FRIEND JOINED':'CONNECTED',cx,vh*0.22,20,'rgba(239,233,218,0.8)',BODY,'800');
       fitTxt('YOU  VS  '+(net.peerNick||'OPPONENT'),cx,vh*0.29,Math.min(28,vw*0.07),tw,'#fff',DISPLAY,'400');
@@ -1068,12 +1098,6 @@ function overlay(){
     rr(sb.x,sb.y,sb.w,sb.h,14); ctx.fillStyle='rgba(255,200,61,0.16)'; ctx.fill();
     ctx.lineWidth=2; ctx.strokeStyle=C.me; ctx.stroke();
     txt(cardBusy?'MAKING CARD...':'SHARE CARD',sb.x+sb.w/2,sb.y+sb.h/2,20,'#fff',DISPLAY,'400');
-    if(a>b){
-      const cb=chalRect();
-      rr(cb.x,cb.y,cb.w,cb.h,14); ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fill();
-      ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.55)'; ctx.stroke();
-      fitTxt(chalBusy?'MAKING LINK...':'CHALLENGE A FRIEND',cb.x+cb.w/2,cb.y+cb.h/2,18,cb.w-24,'#fff',DISPLAY,'400');
-    }
     const ready=st.menuT>0.6;
     ctx.globalAlpha=ready?0.75+0.25*Math.sin(performance.now()/260):0.3;
     txt('TAP TO CONTINUE',cx,vh*0.9,Math.min(28,vw*0.07),'#fff',DISPLAY,'400');
@@ -1108,7 +1132,7 @@ function draw(){
     ctx.globalAlpha=1;
   }
   ctx.restore();
-  if((!st.tut||st.mode!=='play')&&st.mode!=='menu'&&st.mode!=='tiers'&&st.mode!=='settings'&&st.mode!=='lobby') drawHUD();
+  if((!st.tut||st.mode!=='play')&&st.mode!=='menu'&&st.mode!=='tiers'&&st.mode!=='settings'&&st.mode!=='lobby'&&st.mode!=='online') drawHUD();
   if(st.mode==='play') drawControls();
   else overlay();
   if(st.tut&&st.mode==='play') drawTutUI();
@@ -1127,7 +1151,6 @@ function menuBtns(){ const L=mainLayout(); return {nick:L.nick,rec:L.rec}; }
 function howBtn(){ return {x:vw-26,y:24,r:15}; }
 function closeHow(){ prog.seen=1; save(); st.mode=st.chal?'chal':'menu'; st.menuT=0; }
 function shareRect(){ const w=Math.min(vw-48,260), h=50; return {x:(vw-w)/2,y:vh*0.62,w,h}; }
-function chalRect(){ const r=shareRect(); return {x:r.x,y:r.y+r.h+12,w:r.w,h:r.h}; }
 function chalBtns(){ const w=Math.min(vw-48,300), x=(vw-w)/2; return {accept:{x,y:vh*0.62,w,h:58}, skip:{x,y:vh*0.62+76,w,h:40}}; }
 function normNick(n){ return String(n||'').replace(/[^A-Za-z0-9 ]/g,'').trim().toUpperCase(); }
 function toast(s){ st.toast=s; st.toastT=2.2; }
@@ -1201,39 +1224,10 @@ function openBoard(){ st.mode='board'; st.menuT=0; loadBoard(); }
 function acceptChal(){ const c=st.chal; st.chal=null; if(c) startGame(c.tier,c); else { st.mode='menu'; st.menuT=0; } }
 function skipChal(){ st.chal=null; st.mode='menu'; st.menuT=0; }
 
-let chalBusy=false;
-function ensureCode(L){
-  if(L.code) return Promise.resolve(L.code);
-  if(L.codeP) return L.codeP;
-  L.codeP=rpc('create_challenge',{p_device:prog.dev,p_nick:prog.nick||'PLAYER',p_tier:L.tierIdx,p_for:Math.min(30,L.a),p_against:Math.min(30,L.b)})
-    .then(c=>{ L.code=String(c); return L.code; })
-    .catch(e=>{ L.codeP=null; throw e; });
-  return L.codeP;
-}
-function prefetchChallenge(){ const L=st.last; if(L&&L.a>L.b) ensureCode(L).catch(()=>{}); }
 async function shareLink(text,url){
   if(navigator.share){ try{ await navigator.share({title:'Cage Ball',text,url}); return; }catch(e){ if(e&&e.name==='AbortError') return; } }
   try{ await navigator.clipboard.writeText(text+' '+url); toast('LINK COPIED'); return; }catch(e){}
   showLink(text+' '+url);
-}
-async function makeChallenge(L0){
-  const L=L0||st.last; if(!L||chalBusy||L.a<=L.b) return;
-  chalBusy=true;
-  try{
-    const code=L.code||await ensureCode(L);
-    const url=GAME_URL+'/?c='+code;
-    const text=(prog.nick||'I')+' beat '+L.tier+' '+L.a+'-'+L.b+' on Cage Ball. Beat that:';
-    await shareLink(text,url);
-  }catch(e){ toast('COULD NOT MAKE LINK'); }
-  chalBusy=false;
-}
-
-function menuChallenge(){
-  const w=prog.lw;
-  if(!w){ shareLink('Can you beat me at Cage Ball? Two minutes. Most goals wins.',GAME_URL); return; }
-  const key=w.t+':'+w.a+':'+w.b;
-  if(!st.menuL||st.menuL.key!==key) st.menuL={key,a:w.a,b:w.b,tierIdx:w.t,tier:TIERS[w.t].name,code:'',codeP:null};
-  makeChallenge(st.menuL);
 }
 let cardBusy=false;
 async function makeCard(){
@@ -1291,16 +1285,33 @@ function genCode(){
   try{ crypto.getRandomValues(a); }catch(e){ for(let i=0;i<5;i++) a[i]=Math.floor(Math.random()*256); }
   let c=''; for(let i=0;i<5;i++) c+=CODE_CH[a[i]%CODE_CH.length]; return c;
 }
+function startQueue(){
+  netReset(); net.q=true; net.role='queue'; net.state='searching'; net.qT=20; st.mode='lobby'; st.menuT=0;
+  let ws;
+  try{ ws=new WebSocket(location.origin.replace(/^http/,'ws')+'/ws/queue'); }catch(e){ netFail('COULD NOT CONNECT. CHECK YOUR INTERNET.'); return; }
+  net.ws=ws; net.lastRx=performance.now();
+  ws.onmessage=e=>{ let m=null; try{ m=JSON.parse(e.data); }catch(_){ return; }
+    if(m&&m.t==='match'&&/^[A-Z2-9]{5}$/.test(m.code||'')&&net.state==='searching'){
+      try{ ws.onclose=ws.onerror=ws.onmessage=null; ws.close(); }catch(_){}
+      net.ws=null; net.code=m.code; net.role='guest'; netConnect();
+    } };
+  ws.onerror=()=>{ if(net.ws===ws&&net.state==='searching') netFail('COULD NOT CONNECT. CHECK YOUR INTERNET.'); };
+  ws.onclose=()=>{ if(net.ws===ws&&net.state==='searching') netFail('CONNECTION LOST'); };
+}
+function queueEmpty(){
+  try{ if(net.ws){ net.ws.onclose=net.ws.onerror=net.ws.onmessage=null; net.ws.close(); } }catch(e){}
+  net.ws=null; net.state='empty';
+}
 function netReset(){
   try{ if(net.ws){ net.ws.onopen=net.ws.onclose=net.ws.onerror=net.ws.onmessage=null; net.ws.close(); } }catch(e){}
-  Object.assign(net,{on:false,role:'',ws:null,code:'',state:'idle',err:'',peerNick:'',snap:null,snapAt:0,cd:0,seq:0,evq:[],lastRx:0,sendT:0,
+  Object.assign(net,{q:false,qT:0,on:false,role:'',ws:null,code:'',state:'idle',err:'',peerNick:'',snap:null,snapAt:0,cd:0,seq:0,evq:[],lastRx:0,sendT:0,
     in:{mx:0,my:0,sh:0,pc:0,tc:0},seen:{pc:0,tc:0,sh:0},last:{mx:0,my:0,sh:0,t:0}});
 }
 function nsend(o){ try{ if(net.ws&&net.ws.readyState===1) net.ws.send(JSON.stringify(o)); }catch(e){} }
 function evt(k,team){ if(net.on&&net.role==='host') net.evq.push([k,team]); }
 function roomUrl(){ return GAME_URL+'/?r='+net.code+(ONLINE_1V1?'':'&online=1'); }
 function shareRoom(){ shareLink((prog.nick||'I')+' wants a live Cage Ball match. Tap to join:',roomUrl()); }
-function lobbyBtns(){ const w=Math.min(vw-48,300), x=(vw-w)/2; return {share:{x,y:vh*0.6,w,h:54},cancel:{x,y:vh*0.6+68,w,h:44}}; }
+function lobbyBtns(){ const w=Math.min(vw-48,300), x=(vw-w)/2; return {cpu:{x,y:vh*0.6-68,w,h:54},share:{x,y:vh*0.6,w,h:54},cancel:{x,y:vh*0.6+68,w,h:44}}; }
 function startHost(){ netReset(); net.role='host'; net.code=genCode(); st.mode='lobby'; st.menuT=0; netConnect(); }
 function startJoin(code){ netReset(); net.role='guest'; net.code=String(code).toUpperCase(); st.mode='lobby'; st.menuT=0; netConnect(); }
 function leaveLobby(){
@@ -1308,6 +1319,7 @@ function leaveLobby(){
   T=TIERS[0]; resetKick(0); st.freeze=0; st.hold=0; st.charge=0; st.charge1=0; st.msgT=0; st.mode='menu'; st.menuT=0;
 }
 function netFail(msg){
+  net.q=false;
   try{ if(net.ws){ net.ws.onclose=null; net.ws.onerror=null; net.ws.onmessage=null; net.ws.close(); } }catch(e){}
   net.on=false; net.err=msg; net.state='err'; st.mode='lobby'; st.menuT=0; inp.shootHeld=false; inp.joy=null; st.freeze=0; st.hold=0;
 }
@@ -1324,7 +1336,8 @@ function netConnect(){
 function netMsg(m){
   if(net.state==='err') return;
   if(m.t==='role'){
-    if(m.role!==net.role){ netFail(net.role==='guest'?'ROOM NOT FOUND. ASK YOUR FRIEND TO SEND THE LINK AGAIN.':'PLEASE TRY AGAIN'); return; }
+    if(net.q) net.role=m.role;
+    else if(m.role!==net.role){ netFail(net.role==='guest'?'ROOM NOT FOUND. ASK YOUR FRIEND TO SEND THE LINK AGAIN.':'PLEASE TRY AGAIN'); return; }
     net.state=net.role==='host'?'waiting':'joined';
   } else if(m.t==='peer'){
     net.state='ready'; net.cd=3.2; net.peerNick=''; nsend({t:'hi',nick:prog.nick||'PLAYER'});
@@ -1369,6 +1382,7 @@ function snapshot(){
     ev:net.evq.splice(0)};
 }
 function netTick(dt){
+  if(net.state==='searching'&&st.mode==='lobby'){ net.qT-=dt; if(net.qT<=0) queueEmpty(); }
   if(!net.ws) return;
   const now=performance.now();
   if(net.state==='ready'&&st.mode==='lobby'){ net.cd-=dt; if(net.cd<=0&&net.role==='host') hostStart(); }
@@ -1464,6 +1478,7 @@ cv.addEventListener('pointerdown',e=>{
     if(st.menuT>0.3){
       const B=lobbyBtns();
       if(net.state==='err'){ if(hit(B.cancel,x,y)) leaveLobby(); }
+      else if(net.state==='empty'){ if(hit(B.cpu,x,y)){ leaveLobby(); st.mode='tiers'; st.menuT=0; } else if(hit(B.share,x,y)) startHost(); else if(hit(B.cancel,x,y)) leaveLobby(); }
       else if(net.role==='host'&&net.state==='waiting'&&hit(B.share,x,y)) shareRoom();
       else if(net.state!=='ready'&&hit(B.cancel,x,y)) leaveLobby();
     }
@@ -1475,7 +1490,6 @@ cv.addEventListener('pointerdown',e=>{
   if(st.mode==='chal'){ if(st.menuT>0.3){ const cb=chalBtns(); if(hit(cb.accept,x,y)) acceptChal(); else if(hit(cb.skip,x,y)) skipChal(); } return; }
   if(st.mode==='records'){ if(st.menuT>0.3){ st.mode='menu'; st.menuT=0; } return; }
   if(st.mode==='over'){
-    if(st.last&&st.last.a>st.last.b&&hit(chalRect(),x,y)){ makeChallenge(); return; }
     if(hit(shareRect(),x,y)){ makeCard(); return; }
     if(st.menuT>0.6){ st.mode='tiers'; st.menuT=0; }
     return;
@@ -1484,13 +1498,21 @@ cv.addEventListener('pointerdown',e=>{
     if(st.menuT>0.3){
       const L=mainLayout();
       if(hit(L.play,x,y)){ st.mode='tiers'; st.menuT=0; }
-      else if(hit(L.chal,x,y)) menuChallenge();
       else if(hit(L.board,x,y)) openBoard();
-      else if(hit(L.online,x,y)){ if(onlineOn()) startHost(); else toast('ONLINE 1V1 IS COMING SOON'); }
+      else if(hit(L.online,x,y)){ if(onlineOn()){ st.mode='online'; st.menuT=0; } else toast('ONLINE IS COMING SOON'); }
       else if(hit(L.nick,x,y)) openNick();
       else if(hit(L.rec,x,y)){ st.mode='records'; st.menuT=0; }
       else if(hit(L.set,x,y)){ st.mode='settings'; st.menuT=0; }
       else if(hit(L.how,x,y)){ st.mode='how'; st.menuT=0; }
+    }
+    return;
+  }
+  if(st.mode==='online'){
+    if(st.menuT>0.3){
+      const O=onlineLayout();
+      if(hit(backBtn(),x,y)){ st.mode='menu'; st.menuT=0; }
+      else if(hit(O.quick,x,y)) startQueue();
+      else if(hit(O.friend,x,y)) startHost();
     }
     return;
   }
@@ -1543,13 +1565,14 @@ window.addEventListener('keydown',e=>{
   audioOn();
   if(st.mode==='splash'){ if(st.menuT>0.25) afterSplash(); return; }
   if(st.mode==='lobby'){ if(k==='escape'&&st.menuT>0.3&&net.state!=='ready') leaveLobby(); return; }
+  if(st.mode==='online'){ if(k==='escape'&&st.menuT>0.3){ st.mode='menu'; st.menuT=0; } return; }
   if(st.mode==='over'&&st.onlRes){ if((k===' '||k==='enter'||k==='escape')&&st.menuT>0.6) leaveLobby(); return; }
   if(st.tut&&k==='escape'){ finishTut(true); return; }
   if(st.mode==='how'){ if(st.menuT>0.3) closeHow(); return; }
   if(st.mode==='board'){ if((k===' '||k==='enter'||k==='escape')&&st.menuT>0.3){ st.mode='menu'; st.menuT=0; } return; }
   if(st.mode==='chal'){ if(st.menuT>0.3){ if(k===' '||k==='enter') acceptChal(); else if(k==='escape') skipChal(); } return; }
   if(st.mode==='records'){ if((k===' '||k==='enter'||k==='escape')&&st.menuT>0.3){ st.mode='menu'; st.menuT=0; } return; }
-  if(st.mode==='over'){ if(k==='s') makeCard(); if(k==='c') makeChallenge(); if((k===' '||k==='enter')&&st.menuT>0.6){ st.mode='tiers'; st.menuT=0; } return; }
+  if(st.mode==='over'){ if(k==='s') makeCard(); if((k===' '||k==='enter')&&st.menuT>0.6){ st.mode='tiers'; st.menuT=0; } return; }
   if(st.mode==='menu'||st.mode==='tiers'||st.mode==='settings'){
     if(st.menuT<=0.3) return;
     if(k==='escape'&&st.mode!=='menu'){ st.mode='menu'; st.menuT=0; return; }
@@ -1585,15 +1608,6 @@ function frame(now){
 resetKick(0); st.mode='splash'; st.menuT=0; st.hold=0; st.msgT=0;
 flushPend();
 try{ const rc=new URLSearchParams(location.search).get('r'); if(rc&&/^[A-Za-z2-9]{5}$/.test(rc)) joinCode=rc.toUpperCase(); }catch(e){}
-try{
-  const qc=new URLSearchParams(location.search).get('c');
-  if(qc&&/^[a-f0-9]{7}$/i.test(qc)){
-    rpc('get_challenge',{p_code:qc}).then(rows=>{
-      const r=Array.isArray(rows)?rows[0]:null;
-      if(r&&r.tier>=0&&r.tier<TIERS.length){ st.chal={nick:String(r.creator_nick||'PLAYER'),tier:r.tier,gf:r.goals_for|0,ga:r.goals_against|0,code:qc}; if(st.mode==='menu'){ st.mode='chal'; st.menuT=0; } }
-    }).catch(()=>{});
-  }
-}catch(e){}
 resize();
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{});
 requestAnimationFrame(frame);

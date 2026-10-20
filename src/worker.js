@@ -61,9 +61,56 @@ export class Room {
   }
 }
 
+// Quick match: one global queue. The first player waits; when a second arrives,
+// both are given the same fresh room code and the queue sockets close.
+const CODE_CH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function newCode() {
+  const a = new Uint8Array(5);
+  crypto.getRandomValues(a);
+  let c = '';
+  for (let i = 0; i < 5; i++) c += CODE_CH[a[i] % CODE_CH.length];
+  return c;
+}
+
+export class Matchmaker {
+  constructor(state, env) {
+    this.state = state;
+    this.waiting = null;
+  }
+
+  async fetch(request) {
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return new Response('Expected a WebSocket connection', { status: 426 });
+    }
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+    server.accept();
+
+    const w = this.waiting;
+    if (w) {
+      this.waiting = null;
+      const code = newCode();
+      send(w, { t: 'match', code });
+      send(server, { t: 'match', code });
+      try { w.close(1000, 'matched'); } catch (e) { /* ignore */ }
+      try { server.close(1000, 'matched'); } catch (e) { /* ignore */ }
+    } else {
+      this.waiting = server;
+      const gone = () => { if (this.waiting === server) this.waiting = null; };
+      server.addEventListener('close', gone);
+      server.addEventListener('error', gone);
+    }
+    return new Response(null, { status: 101, webSocket: client });
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/ws/queue') {
+      return env.MATCH.get(env.MATCH.idFromName('queue')).fetch(request);
+    }
     const m = url.pathname.match(/^\/ws\/([A-Z2-9]{5})$/);
     if (m) {
       const id = env.ROOMS.idFromName(m[1]);
