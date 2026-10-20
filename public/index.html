@@ -75,9 +75,10 @@ const TIERS=[
 const TEAM0={spd:0.97,tackle:0.38,guard:1.1,shot:0.4,range:175,spread:0.7,bait:0.4,smart:false};
 let T=TIERS[0];
 const GAME_URL='https://cageball.app';
-const prog={seen:0,tut:0,dev:'',unlocked:0,streak:0,best:0,nick:'',played:0,wins:0,goals:0,nut:0,margin:0};
+const prog={seen:0,tut:0,snd:1,guide:1,lw:null,dev:'',unlocked:0,streak:0,best:0,nick:'',played:0,wins:0,goals:0,nut:0,margin:0};
 try{ const d=JSON.parse(localStorage.getItem('cageball.v1')||'null'); if(d){
-  prog.seen=d.seen|0;prog.tut=d.tut|0;prog.dev=(typeof d.dev==='string'&&/^[0-9a-f-]{36}$/i.test(d.dev))?d.dev:'';prog.unlocked=Math.min(2,d.unlocked|0);prog.streak=d.streak|0;prog.best=d.best|0;
+  prog.seen=d.seen|0;prog.tut=d.tut|0;prog.snd=('snd' in d)?(d.snd?1:0):1;prog.guide=('guide' in d)?(d.guide?1:0):1;
+  if(d.lw&&typeof d.lw==='object'){ const lt=d.lw.t|0, la=d.lw.a|0, lb=d.lw.b|0; if(lt>=0&&lt<3&&la>lb) prog.lw={t:lt,a:la,b:lb}; }prog.dev=(typeof d.dev==='string'&&/^[0-9a-f-]{36}$/i.test(d.dev))?d.dev:'';prog.unlocked=Math.min(2,d.unlocked|0);prog.streak=d.streak|0;prog.best=d.best|0;
   prog.nick=typeof d.nick==='string'?d.nick.slice(0,12):'';
   prog.played=d.played|0;prog.wins=d.wins|0;prog.goals=d.goals|0;prog.nut=d.nut|0;prog.margin=d.margin|0;
 } }catch(e){}
@@ -118,7 +119,7 @@ window.addEventListener('resize', resize);
 let ac = null;
 function audioOn(){ try{ ac = ac || new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }catch(e){} }
 function sfx(f, d=0.08, type='square', v=0.04){
-  if(!ac) return;
+  if(!ac||!prog.snd) return;
   try{
     const o=ac.createOscillator(), g=ac.createGain();
     o.type=type; o.frequency.value=f; g.gain.value=v;
@@ -160,7 +161,7 @@ function endGame(){
   st.mode='over'; st.menuT=0; st.unlockMsg='';
   const a=st.score[0], b=st.score[1];
   if(a>b){
-    prog.streak++; prog.best=Math.max(prog.best,prog.streak);
+    prog.streak++; prog.best=Math.max(prog.best,prog.streak); prog.lw={t:st.tier,a,b};
     if(st.tier<TIERS.length-1&&prog.unlocked<st.tier+1){ prog.unlocked=st.tier+1; st.unlockMsg='UNLOCKED: '+TIERS[prog.unlocked].name; }
     else if(st.tier===TIERS.length-1) st.unlockMsg='YOU BEAT THE KING';
   } else prog.streak=0;
@@ -177,11 +178,11 @@ function endGame(){
 
 /* ---------- splash + tutorial ---------- */
 function afterSplash(){
-  if(!prog.tut){ startTut(); }
+  if(!prog.tut){ startTut(true); }
   else { st.mode=st.chal?'chal':'menu'; st.menuT=0; }
 }
-function startTut(){
-  st.tut={step:0,ring:{x:W*0.4,y:H*0.55},tgt:null};
+function startTut(auto){
+  st.tut={step:0,ring:{x:W*0.4,y:H*0.55},tgt:null,auto:!!auto};
   st.tier=0; T=Object.assign({},TIERS[0]); st.chalActive=null;
   st.mode='play'; st.t=120; st.score=[0,0]; st.kick=0; st.meter=[0,0]; st.fire=[0,0]; st.shake=0; st.stop=0; st.stats={nut:0,fire:0};
   resetKick(0);
@@ -208,7 +209,7 @@ function tutProgress(){
   }
 }
 function finishTut(skipped){
-  st.tut=null; prog.tut=1; save();
+  const auto=st.tut&&st.tut.auto; st.tut=null; if(auto){ prog.tut=1; save(); }
   resetKick(0); st.hold=0; st.msgT=0; st.freeze=0; st.score=[0,0]; st.charge=0;
   inp.shootHeld=false; inp.joy=null; ptr.clear();
   st.mode=st.chal?'chal':'menu'; st.menuT=0;
@@ -663,6 +664,7 @@ function drawAssist(){
   /* pass-target marker (real matches and tutorial step 2): where PASS will send the ball */
   if(st.mode!=='play'||st.hold>0||st.freeze>0||!cur||ball.owner!==cur) return;
   if(st.tut&&st.tut.step!==1) return;
+  if(!st.tut&&!prog.guide) return;
   const t=passTarget(); if(!t) return;
   const pl=0.5+0.5*Math.sin(performance.now()/180);
   ctx.save();
@@ -770,11 +772,56 @@ function rr(x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
 }
 function tierRects(){
-  const w=Math.min(vw-48,360), x=(vw-w)/2, h=Math.min(78,vh*0.105), gap=12, y0=vh*0.44;
+  const w=Math.min(vw-48,360), x=(vw-w)/2, h=Math.min(84,vh*0.12), gap=14, y0=vh*0.27;
   return TIERS.map((t,i)=>({x,y:y0+i*(h+gap),w,h,i}));
 }
+function backBtn(){ return {x:14,y:10,w:84,h:30}; }
+function drawBack(){
+  const b=backBtn(); rr(b.x,b.y,b.w,b.h,10); ctx.fillStyle='rgba(255,255,255,0.09)'; ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.45)'; ctx.stroke();
+  txt('< BACK',b.x+b.w/2,b.y+b.h/2+1,14,'rgba(239,233,218,0.9)',DISPLAY,'400');
+}
+function mainLayout(){
+  const w=Math.min(vw-48,360), x=(vw-w)/2, g=10, sh=40, top=vh*0.3, avail=vh-18-top;
+  const bh=Math.max(40,Math.min(58,(avail-5*g-2*sh)/4));
+  const L={}; let y=top;
+  for(const k of ['play','chal','board','online']){ L[k]={x,y,w,h:bh}; y+=bh+g; }
+  const w1=w*0.5-g/2, w2=w-w1-g;
+  L.nick={x,y,w:w1,h:sh}; L.rec={x:x+w1+g,y,w:w2,h:sh}; y+=sh+g;
+  L.set={x,y,w:w1,h:sh}; L.how={x:x+w1+g,y,w:w2,h:sh};
+  return L;
+}
+function bigBtn(b,label,sub,col,dim,fill){
+  ctx.globalAlpha=dim?0.45:1;
+  rr(b.x,b.y,b.w,b.h,14); ctx.fillStyle=fill||'rgba(255,255,255,0.08)'; ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle=col; ctx.stroke();
+  txt(label,b.x+16,b.y+b.h*(sub?0.36:0.5),Math.min(22,b.h*0.4),'#fff',DISPLAY,'400','left');
+  if(sub) fitTxt(sub,b.x+16,b.y+b.h*0.74,Math.min(14,b.h*0.25),b.w-32,'rgba(239,233,218,0.7)',BODY,'600','left');
+  ctx.globalAlpha=1;
+}
+function smallBtn(b,label,col){
+  rr(b.x,b.y,b.w,b.h,12); ctx.fillStyle='rgba(255,255,255,0.07)'; ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.35)'; ctx.stroke();
+  fitTxt(label,b.x+b.w/2,b.y+b.h/2,Math.min(16,b.h*0.4),b.w-16,col,DISPLAY,'400');
+}
+function settingsRows(){
+  const w=Math.min(vw-48,360), x=(vw-w)/2, h=72, g=12, y0=vh*0.2;
+  return [
+    {k:'tut',x,y:y0,w,h,label:'TUTORIAL',sub:'Practice round when the game opens'},
+    {k:'guide',x,y:y0+(h+g),w,h,label:'PASS GUIDE',sub:'Show who your pass will go to'},
+    {k:'snd',x,y:y0+2*(h+g),w,h,label:'SOUND',sub:'Game sound effects'},
+    {k:'replay',x,y:y0+3*(h+g),w,h:52,label:'REPLAY TUTORIAL NOW',sub:''}
+  ];
+}
+function settingVal(k){ return k==='tut'?!prog.tut:k==='guide'?!!prog.guide:!!prog.snd; }
+function toggleSetting(k){
+  if(k==='tut') prog.tut=prog.tut?0:1;
+  else if(k==='guide') prog.guide=prog.guide?0:1;
+  else if(k==='snd') prog.snd=prog.snd?0:1;
+  save(); if(k==='snd'&&prog.snd) sfx(520,0.08,'triangle',0.05);
+}
 function overlay(){
-  ctx.fillStyle=(st.mode==='how'||st.mode==='board'||st.mode==='chal'||st.mode==='splash')?'rgb(16,20,29)':'rgba(16,20,29,0.92)'; ctx.fillRect(0,0,vw,vh);
+  ctx.fillStyle=(st.mode==='how'||st.mode==='board'||st.mode==='chal'||st.mode==='splash'||st.mode==='settings')?'rgb(16,20,29)':'rgba(16,20,29,0.92)'; ctx.fillRect(0,0,vw,vh);
   const cx=vw/2, tw=Math.min(vw-48,360);
   if(st.mode==='splash'){
     const t=st.menuT, a=Math.min(1,t/0.35), e=1-Math.pow(1-Math.min(1,t/0.55),3), s=0.7+0.3*e;
@@ -820,10 +867,21 @@ function overlay(){
     txt('TAP TO START',cx,vh*0.93,Math.min(26,vw*0.065),'#fff',DISPLAY,'400');
     ctx.globalAlpha=1;
   } else if(st.mode==='menu'){
-    let y=vh*0.12;
-    txt('CAGE BALL',cx,y,Math.min(58,vw*0.15),C.me,DISPLAY,'400'); y+=Math.min(46,vw*0.115);
-    y=wrap('3v3 street football. Two minutes. Most goals wins.',cx,y,tw,24,18,'#efe9da','600');
-    wrap('Left thumb moves. SHOOT: hold, release. PASS: pass or switch. TRICK: dodge defenders to fill your meter.',cx,y+4,tw,21,15,'rgba(239,233,218,0.65)','600');
+    let y=vh*0.1;
+    txt('CAGE BALL',cx,y,Math.min(58,vw*0.15),C.me,DISPLAY,'400'); y+=Math.min(44,vw*0.11);
+    wrap('3v3 street football. Two minutes. Most goals wins.',cx,y,tw,24,17,'rgba(239,233,218,0.85)','600');
+    const L=mainLayout(), hasW=!!prog.lw;
+    bigBtn(L.play,'PLAY','Beat the CPU. Climb the levels.',C.me,false,'rgba(255,200,61,0.16)');
+    bigBtn(L.chal,chalBusy?'MAKING LINK...':'CHALLENGE A FRIEND',hasW?'Send your last win. Can they beat it?':'Win a match to unlock',hasW?'rgba(239,233,218,0.55)':'rgba(239,233,218,0.25)',!hasW);
+    bigBtn(L.board,'LEADERBOARD','See who is winning','rgba(239,233,218,0.55)');
+    bigBtn(L.online,'ONLINE 1V1','Coming soon','rgba(239,233,218,0.25)',true);
+    smallBtn(L.nick,'YOU  '+(prog.nick||'SET YOUR NAME'),C.me);
+    smallBtn(L.rec,'RECORDS','#efe9da');
+    smallBtn(L.set,'SETTINGS','#efe9da');
+    smallBtn(L.how,'HOW TO PLAY','#efe9da');
+  } else if(st.mode==='tiers'){
+    drawBack();
+    txt('CHOOSE LEVEL',cx,vh*0.15,Math.min(38,vw*0.098),C.me,DISPLAY,'400');
     for(const r of tierRects()){
       const t=TIERS[r.i], open=r.i<=prog.unlocked;
       rr(r.x,r.y,r.w,r.h,14); ctx.fillStyle=open?'rgba(255,255,255,0.09)':'rgba(255,255,255,0.03)'; ctx.fill();
@@ -834,16 +892,21 @@ function overlay(){
       txt(open?'PLAY':'LOCKED',r.x+r.w-16,r.y+r.h/2,Math.min(18,r.h*0.24),open?C.me:'#efe9da',DISPLAY,'400','right');
       ctx.globalAlpha=1;
     }
-    const ry=tierRects()[2]; 
-    txt('STREAK '+prog.streak+'   BEST '+prog.best,cx,ry.y+ry.h+28,16,'rgba(239,233,218,0.6)',BODY,'800');
-    { const q=howBtn(); ctx.beginPath(); ctx.arc(q.x,q.y,q.r,0,7); ctx.fillStyle='rgba(255,255,255,0.09)'; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.45)'; ctx.stroke(); txt('?',q.x,q.y+1,q.r*1.1,'#fff',DISPLAY,'400');
-      const bb=boardBtn(); rr(bb.x,bb.y,bb.w,bb.h,13); ctx.fillStyle='rgba(255,255,255,0.09)'; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.45)'; ctx.stroke();
-      txt('LEADERBOARD',bb.x+bb.w/2,bb.y+bb.h/2+1,12,C.me,DISPLAY,'400'); }
-    const mb=menuBtns();
-    for(const [b,label,col] of [[mb.nick,'YOU  '+(prog.nick||'SET YOUR NAME'),C.me],[mb.rec,'RECORDS','#efe9da']]){
-      rr(b.x,b.y,b.w,b.h,12); ctx.fillStyle='rgba(255,255,255,0.07)'; ctx.fill();
-      ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.35)'; ctx.stroke();
-      txt(label,b.x+b.w/2,b.y+b.h/2,Math.min(17,b.h*0.4),col,DISPLAY,'400');
+    const ry=tierRects()[2];
+    txt('STREAK '+prog.streak+'   BEST '+prog.best,cx,ry.y+ry.h+30,16,'rgba(239,233,218,0.6)',BODY,'800');
+  } else if(st.mode==='settings'){
+    drawBack();
+    txt('SETTINGS',cx,vh*0.11,Math.min(46,vw*0.12),C.me,DISPLAY,'400');
+    for(const r of settingsRows()){
+      rr(r.x,r.y,r.w,r.h,14); ctx.fillStyle='rgba(255,255,255,0.07)'; ctx.fill();
+      ctx.lineWidth=2; ctx.strokeStyle='rgba(239,233,218,0.3)'; ctx.stroke();
+      if(r.k==='replay'){ txt(r.label,r.x+r.w/2,r.y+r.h/2,18,C.me,DISPLAY,'400'); continue; }
+      txt(r.label,r.x+16,r.y+r.h*0.36,Math.min(20,r.h*0.28),'#fff',DISPLAY,'400','left');
+      fitTxt(r.sub,r.x+16,r.y+r.h*0.72,14,r.w-100,'rgba(239,233,218,0.7)',BODY,'600','left');
+      const on=settingVal(r.k), sw=54, sh=30, sx=r.x+r.w-16-sw, sy=r.y+r.h/2-sh/2;
+      rr(sx,sy,sw,sh,15); ctx.fillStyle=on?C.me:'rgba(255,255,255,0.18)'; ctx.fill();
+      ctx.fillStyle=on?C.ink:'#efe9da'; ctx.beginPath(); ctx.arc(on?sx+sw-15:sx+15,sy+sh/2,11,0,Math.PI*2); ctx.fill();
+      txt(on?'ON':'OFF',sx-10,sy+sh/2+1,13,on?C.me:'rgba(239,233,218,0.55)',DISPLAY,'400','right');
     }
   } else if(st.mode==='board'){
     let y=vh*0.075;
@@ -962,7 +1025,7 @@ function draw(){
     ctx.globalAlpha=1;
   }
   ctx.restore();
-  if((!st.tut||st.mode!=='play')&&st.mode!=='menu') drawHUD();
+  if((!st.tut||st.mode!=='play')&&st.mode!=='menu'&&st.mode!=='tiers'&&st.mode!=='settings') drawHUD();
   if(st.mode==='play') drawControls();
   else overlay();
   if(st.tut&&st.mode==='play') drawTutUI();
@@ -977,17 +1040,11 @@ function draw(){
 
 /* ---------- menu helpers, nickname, share card ---------- */
 function hit(r,x,y){ return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
-function menuBtns(){
-  const ry=tierRects()[2], w=Math.min(vw-48,360), x=(vw-w)/2, h=44, gap=12;
-  const y=Math.min(Math.max(ry.y+ry.h+44, vh-72), vh-h-8);
-  const w1=w*0.6-gap/2, w2=w-w1-gap;
-  return {nick:{x,y,w:w1,h}, rec:{x:x+w1+gap,y,w:w2,h}};
-}
+function menuBtns(){ const L=mainLayout(); return {nick:L.nick,rec:L.rec}; }
 function howBtn(){ return {x:vw-26,y:24,r:15}; }
 function closeHow(){ prog.seen=1; save(); st.mode=st.chal?'chal':'menu'; st.menuT=0; }
 function shareRect(){ const w=Math.min(vw-48,260), h=50; return {x:(vw-w)/2,y:vh*0.62,w,h}; }
 function chalRect(){ const r=shareRect(); return {x:r.x,y:r.y+r.h+12,w:r.w,h:r.h}; }
-function boardBtn(){ return {x:14,y:9,w:116,h:26}; }
 function chalBtns(){ const w=Math.min(vw-48,300), x=(vw-w)/2; return {accept:{x,y:vh*0.62,w,h:58}, skip:{x,y:vh*0.62+76,w,h:40}}; }
 function normNick(n){ return String(n||'').replace(/[^A-Za-z0-9 ]/g,'').trim().toUpperCase(); }
 function toast(s){ st.toast=s; st.toastT=2.2; }
@@ -1076,8 +1133,8 @@ async function shareLink(text,url){
   try{ await navigator.clipboard.writeText(text+' '+url); toast('LINK COPIED'); return; }catch(e){}
   showLink(text+' '+url);
 }
-async function makeChallenge(){
-  const L=st.last; if(!L||chalBusy||L.a<=L.b) return;
+async function makeChallenge(L0){
+  const L=L0||st.last; if(!L||chalBusy||L.a<=L.b) return;
   chalBusy=true;
   try{
     const code=L.code||await ensureCode(L);
@@ -1088,6 +1145,13 @@ async function makeChallenge(){
   chalBusy=false;
 }
 
+function menuChallenge(){
+  const w=prog.lw;
+  if(!w){ toast('WIN A MATCH TO UNLOCK CHALLENGES'); return; }
+  const key=w.t+':'+w.a+':'+w.b;
+  if(!st.menuL||st.menuL.key!==key) st.menuL={key,a:w.a,b:w.b,tierIdx:w.t,tier:TIERS[w.t].name,code:'',codeP:null};
+  makeChallenge(st.menuL);
+}
 let cardBusy=false;
 async function makeCard(){
   const L=st.last; if(!L||cardBusy) return;
@@ -1157,17 +1221,34 @@ cv.addEventListener('pointerdown',e=>{
   if(st.mode==='over'){
     if(st.last&&st.last.a>st.last.b&&hit(chalRect(),x,y)){ makeChallenge(); return; }
     if(hit(shareRect(),x,y)){ makeCard(); return; }
-    if(st.menuT>0.6){ st.mode='menu'; st.menuT=0; }
+    if(st.menuT>0.6){ st.mode='tiers'; st.menuT=0; }
     return;
   }
   if(st.mode==='menu'){
-    const mb=menuBtns(), q=howBtn();
-    if(st.menuT>0.3&&Math.hypot(x-q.x,y-q.y)<=q.r+10){ st.mode='how'; st.menuT=0; return; }
-    if(st.menuT>0.3&&hit(boardBtn(),x,y)){ openBoard(); return; }
-    if(st.menuT>0.3&&hit(mb.nick,x,y)){ openNick(); return; }
-    if(st.menuT>0.3&&hit(mb.rec,x,y)){ st.mode='records'; st.menuT=0; return; }
-    if(st.menuT>0.3) for(const r of tierRects()){
-      if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h&&r.i<=prog.unlocked){ startGame(r.i); break; }
+    if(st.menuT>0.3){
+      const L=mainLayout();
+      if(hit(L.play,x,y)){ st.mode='tiers'; st.menuT=0; }
+      else if(hit(L.chal,x,y)) menuChallenge();
+      else if(hit(L.board,x,y)) openBoard();
+      else if(hit(L.online,x,y)) toast('ONLINE 1V1 IS COMING SOON');
+      else if(hit(L.nick,x,y)) openNick();
+      else if(hit(L.rec,x,y)){ st.mode='records'; st.menuT=0; }
+      else if(hit(L.set,x,y)){ st.mode='settings'; st.menuT=0; }
+      else if(hit(L.how,x,y)){ st.mode='how'; st.menuT=0; }
+    }
+    return;
+  }
+  if(st.mode==='tiers'){
+    if(st.menuT>0.3){
+      if(hit(backBtn(),x,y)){ st.mode='menu'; st.menuT=0; return; }
+      for(const r of tierRects()) if(hit(r,x,y)&&r.i<=prog.unlocked){ startGame(r.i); break; }
+    }
+    return;
+  }
+  if(st.mode==='settings'){
+    if(st.menuT>0.3){
+      if(hit(backBtn(),x,y)){ st.mode='menu'; st.menuT=0; return; }
+      for(const r of settingsRows()) if(hit(r,x,y)){ if(r.k==='replay') startTut(false); else toggleSetting(r.k); break; }
     }
     return;
   }
@@ -1210,8 +1291,14 @@ window.addEventListener('keydown',e=>{
   if(st.mode==='board'){ if((k===' '||k==='enter'||k==='escape')&&st.menuT>0.3){ st.mode='menu'; st.menuT=0; } return; }
   if(st.mode==='chal'){ if(st.menuT>0.3){ if(k===' '||k==='enter') acceptChal(); else if(k==='escape') skipChal(); } return; }
   if(st.mode==='records'){ if((k===' '||k==='enter'||k==='escape')&&st.menuT>0.3){ st.mode='menu'; st.menuT=0; } return; }
-  if(st.mode==='over'){ if(k==='s') makeCard(); if(k==='c') makeChallenge(); if((k===' '||k==='enter')&&st.menuT>0.6){ st.mode='menu'; st.menuT=0; } return; }
-  if(st.mode==='menu'){ const n=parseInt(k,10)-1; if(n>=0&&n<TIERS.length&&n<=prog.unlocked&&st.menuT>0.3) startGame(n); return; }
+  if(st.mode==='over'){ if(k==='s') makeCard(); if(k==='c') makeChallenge(); if((k===' '||k==='enter')&&st.menuT>0.6){ st.mode='tiers'; st.menuT=0; } return; }
+  if(st.mode==='menu'||st.mode==='tiers'||st.mode==='settings'){
+    if(st.menuT<=0.3) return;
+    if(k==='escape'&&st.mode!=='menu'){ st.mode='menu'; st.menuT=0; return; }
+    if(st.mode==='menu'&&(k===' '||k==='enter')){ st.mode='tiers'; st.menuT=0; return; }
+    const n=parseInt(k,10)-1; if(st.mode!=='settings'&&n>=0&&n<TIERS.length&&n<=prog.unlocked) startGame(n);
+    return;
+  }
   inp.keys[k]=true;
   if(k==='j'||k===' '){ inp.shootHeld=true; e.preventDefault(); }
   if(k==='k') doPass();
