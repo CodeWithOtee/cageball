@@ -856,7 +856,7 @@ function mainLayout(){
 }
 function onlineLayout(){
   const w=Math.min(vw-48,360), x=(vw-w)/2, h=78, g=14, y0=vh*0.3;
-  return {quick:{x,y:y0,w,h}, friend:{x,y:y0+h+g,w,h}};
+  return quickOn()?{quick:{x,y:y0,w,h}, friend:{x,y:y0+h+g,w,h}}:{quick:null, friend:{x,y:y0,w,h}};
 }
 function drawGear(b){
   rr(b.x,b.y,b.w,b.h,12); ctx.fillStyle='rgba(255,255,255,0.07)'; ctx.fill();
@@ -949,7 +949,7 @@ function overlay(){
     wrap('3v3 street football. Two minutes. Most goals wins.',cx,y,tw,24,17,'rgba(239,233,218,0.85)','600');
     const L=mainLayout();
     bigBtn(L.play,'PLAY','Beat the CPU. Climb the levels.',C.me,false,'rgba(255,200,61,0.16)');
-    bigBtn(L.online,'ONLINE',onlineOn()?'1v1 vs a random player or a friend':'Coming soon',onlineOn()?'rgba(239,233,218,0.55)':'rgba(239,233,218,0.25)',!onlineOn());
+    bigBtn(L.online,'ONLINE',onlineOn()?(quickOn()?'1v1 vs a random player or a friend':'Challenge a friend live'):'Coming soon',onlineOn()?'rgba(239,233,218,0.55)':'rgba(239,233,218,0.25)',!onlineOn());
     bigBtn(L.board,'LEADERBOARD','See who is winning','rgba(239,233,218,0.55)');
     smallBtn(L.nick,prog.nick||'SET YOUR NAME',C.me);
     drawGear(L.set);
@@ -959,9 +959,9 @@ function overlay(){
     drawBack();
     txt('ONLINE',cx,vh*0.17,Math.min(44,vw*0.115),C.me,DISPLAY,'400');
     const O=onlineLayout();
-    bigBtn(O.quick,'QUICK MATCH','1v1 against a random player',C.me,false,'rgba(255,200,61,0.16)');
-    bigBtn(O.friend,'CHALLENGE A FRIEND','Send a link. Play them live.','rgba(239,233,218,0.55)');
-    wrap('More online modes are coming.',cx,O.friend.y+O.friend.h+34,tw,22,15,'rgba(239,233,218,0.5)','600');
+    if(O.quick) bigBtn(O.quick,'QUICK MATCH','1v1 against a random player',C.me,false,'rgba(255,200,61,0.16)');
+    bigBtn(O.friend,'CHALLENGE A FRIEND','Send a link. Play them live.',O.quick?'rgba(239,233,218,0.55)':C.me,false,O.quick?undefined:'rgba(255,200,61,0.16)');
+    wrap(quickOn()?'More online modes are coming.':'Random opponents and more modes are coming.',cx,O.friend.y+O.friend.h+34,tw,22,15,'rgba(239,233,218,0.5)','600');
   } else if(st.mode==='tiers'){
     drawBack();
     txt('CHOOSE LEVEL',cx,vh*0.15,Math.min(38,vw*0.098),C.me,DISPLAY,'400');
@@ -1313,6 +1313,8 @@ async function makeCard(){
 
 /* ---------- online 1v1: live friend match (the host's phone runs the game, the guest sends inputs) ---------- */
 const ONLINE_1V1=false;   /* flip to true to open live 1v1 to everyone; ?online=1 opens it for testers */
+const QUICK_MATCH=false;   /* random-opponent queue: flip to true once enough players are online at the same time */
+function quickOn(){ return QUICK_MATCH||/[?&]quick=1(&|$)/.test(location.search); }
 function onlineOn(){ return ONLINE_1V1||/[?&]online=1(&|$)/.test(location.search); }
 const CODE_CH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 let joinCode='';
@@ -1547,7 +1549,7 @@ cv.addEventListener('pointerdown',e=>{
     if(st.menuT>0.3){
       const O=onlineLayout();
       if(hit(backBtn(),x,y)){ st.mode='menu'; st.menuT=0; }
-      else if(hit(O.quick,x,y)) startQueue();
+      else if(O.quick&&hit(O.quick,x,y)) startQueue();
       else if(hit(O.friend,x,y)) startHost();
     }
     return;
