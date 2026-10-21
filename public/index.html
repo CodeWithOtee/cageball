@@ -159,6 +159,7 @@ function startGame(i,chal){
   if(st.tier===0&&!chal&&prog.wins===0&&prog.played<6){ T.spd=0.78; T.tackle=0.16; T.guard=0.95; T.save=0.4; T.shot=1.2; T.spread=1.15; T.bait=0.1; }
   st.mode='play'; st.t=120; st.score=[0,0]; st.kick=0; st.meter=[0,0]; st.fire=[0,0]; st.shake=0; st.stop=0; st.stats={nut:0,fire:0};
   resetKick(0);
+  track('match_start',st.tier); if(prog.played===0) track('first_match_start',st.tier); else if(prog.played===1) track('second_match_start',st.tier);
 }
 function endGame(){
   if(net.on&&net.role==='host'){ onlineEnd(); return; }
@@ -176,6 +177,7 @@ function endGame(){
   st.last={a,b,tier:T.name,tierIdx:st.tier,streak:prog.streak,nut:st.stats.nut,fire:st.stats.fire,res:a>b?'win':a<b?'loss':'draw',chal,code:'',codeP:null};
   save();
   queueResult(a,b,st.tier,st.stats.nut,prog.streak);
+  track('match_end',st.tier,a); if(prog.played===1){ track('first_match_end',st.tier,a-b); } if(a>b&&prog.wins===1) track('first_win',st.tier,a-b);
   sfx(300,0.4,'sawtooth',0.05);
 }
 
@@ -186,6 +188,7 @@ function afterSplash(){
   else { st.mode=st.chal?'chal':'menu'; st.menuT=0; }
 }
 function startTut(auto){
+  if(auto) track('tut_start');
   st.tut={step:0,ring:{x:W*0.4,y:H*0.55},tgt:null,auto:!!auto};
   st.tier=0; T=Object.assign({},TIERS[0]); st.chalActive=null;
   st.mode='play'; st.t=120; st.score=[0,0]; st.kick=0; st.meter=[0,0]; st.fire=[0,0]; st.shake=0; st.stop=0; st.stats={nut:0,fire:0};
@@ -213,7 +216,7 @@ function tutProgress(){
   }
 }
 function finishTut(skipped){
-  const auto=st.tut&&st.tut.auto; st.tut=null; if(auto){ prog.tut=1; save(); }
+  const auto=st.tut&&st.tut.auto; st.tut=null; if(auto){ prog.tut=1; save(); track(skipped?'tut_skip':'tut_done'); }
   resetKick(0); st.hold=0; st.msgT=0; st.freeze=0; st.score=[0,0]; st.charge=0;
   inp.shootHeld=false; inp.joy=null; ptr.clear();
   st.mode=st.chal?'chal':'menu'; st.menuT=0;
@@ -393,6 +396,7 @@ function tryTackle(){
 }
 function goal(team){
   if(st.tut&&team===1){ tutReset(); return; }
+  if(team===0&&!st.tut&&!net.on&&prog.played===0&&!st.firstGoalSent){ st.firstGoalSent=1; track('first_goal',st.tier,Math.round(120-st.t)); }
   st.score[team]++; st.freeze=1.9; st.shake=12; st.fire[0]=0; st.fire[1]=0; st.kick=1-team; st.charge=0; st.charge1=0; evt('g',team);
   pop(team===0?'GOAL!':'THEY SCORED', team===0?C.me:C.cpu, 1.8, true);
   sfx(520,0.15,'square',0.06); setTimeout(()=>sfx(660,0.15,'square',0.06),140); setTimeout(()=>sfx(880,0.3,'square',0.06),280);
@@ -1183,7 +1187,7 @@ function openNick(){
 function commitNick(){
   if(!nickOpen) return; nickOpen=false;
   prog.nick=nickEl.value.replace(/[^A-Za-z0-9 _.\-]/g,'').trim().slice(0,12).toUpperCase();
-  nickEl.hidden=true; nickEl.blur(); save();
+  nickEl.hidden=true; nickEl.blur(); save(); if(prog.nick) track('name_set');
 }
 nickEl.addEventListener('blur',commitNick);
 
@@ -1223,6 +1227,20 @@ async function flushPend(){
   }
   flushing=false;
 }
+/* anonymous usage counters: random device id + event name only (see supabase/analytics.sql) */
+const ONCE=['first_open','tut_start','tut_done','tut_skip','first_match_start','first_goal','first_match_end','first_win','second_match_start','first_share','name_set'];
+let evSent=[];
+try{ evSent=JSON.parse(localStorage.getItem('cageball.ev')||'[]'); if(!Array.isArray(evSent)) evSent=[]; }catch(e){ evSent=[]; }
+function track(name,tier,meta){
+  try{
+    const once=ONCE.indexOf(name)>=0;
+    if(once&&evSent.indexOf(name)>=0) return;
+    if(!prog.dev) return;
+    rpc('track',{p_device:prog.dev,p_name:name,p_tier:tier==null?null:tier|0,p_meta:meta==null?null:Math.round(meta)}).then(()=>{
+      if(once){ evSent.push(name); try{ localStorage.setItem('cageball.ev',JSON.stringify(evSent)); }catch(e){} }
+    }).catch(()=>{});
+  }catch(e){}
+}
 function queueResult(a,b,tier,nut,streak){
   pend.push({p_device:prog.dev,p_nick:prog.nick||'PLAYER',p_tier:tier,p_for:Math.min(30,a),p_against:Math.min(30,b),p_nutmegs:Math.min(60,nut),p_streak:Math.min(1000,streak)});
   savePend(); flushPend();
@@ -1236,7 +1254,7 @@ async function loadBoard(){
     board.rows=Array.isArray(rows)?rows:[]; board.state='ok';
   }catch(e){ board.state='err'; board.err=conn.err||'ERROR'; }
 }
-function openBoard(){ st.mode='board'; st.menuT=0; loadBoard(); }
+function openBoard(){ track('board_open'); st.mode='board'; st.menuT=0; loadBoard(); }
 
 function acceptChal(){ const c=st.chal; st.chal=null; if(c) startGame(c.tier,c); else { st.mode='menu'; st.menuT=0; } }
 function skipChal(){ st.chal=null; st.mode='menu'; st.menuT=0; }
@@ -1249,6 +1267,7 @@ async function shareLink(text,url){
 let cardBusy=false;
 async function makeCard(){
   const L=st.last; if(!L||cardBusy) return;
+  track('share_tap',L.tierIdx); track('first_share');
   cardBusy=true;
   try{
     try{ await Promise.all([document.fonts.load('400 40px "Bowlby One"'),document.fonts.load('800 40px "Barlow Condensed"')]); }catch(e){}
@@ -1516,7 +1535,7 @@ cv.addEventListener('pointerdown',e=>{
       const L=mainLayout();
       if(hit(L.play,x,y)){ st.mode='tiers'; st.menuT=0; }
       else if(hit(L.board,x,y)) openBoard();
-      else if(hit(L.online,x,y)){ if(onlineOn()){ st.mode='online'; st.menuT=0; } else toast('ONLINE IS COMING SOON'); }
+      else if(hit(L.online,x,y)){ if(onlineOn()){ st.mode='online'; st.menuT=0; } else{ toast('ONLINE IS COMING SOON'); track('online_tap'); } }
       else if(hit(L.nick,x,y)) openNick();
       else if(hit(L.rec,x,y)){ st.mode='records'; st.menuT=0; }
       else if(hit(L.set,x,y)){ st.mode='settings'; st.menuT=0; }
@@ -1624,6 +1643,7 @@ function frame(now){
 }
 resetKick(0); st.mode='splash'; st.menuT=0; st.hold=0; st.msgT=0;
 flushPend();
+track('session'); track('first_open');
 try{ const rc=new URLSearchParams(location.search).get('r'); if(rc&&/^[A-Za-z2-9]{5}$/.test(rc)) joinCode=rc.toUpperCase(); }catch(e){}
 resize();
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{});
