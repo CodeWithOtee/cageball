@@ -68,9 +68,9 @@ const BODY = '"Barlow Condensed", "Arial Narrow", system-ui, sans-serif';
 
 /* ---------- tiers + progress ---------- */
 const TIERS=[
-  {name:'ROOKIE',   desc:'Slow defenders. Learn the moves.',      spd:0.86,tackle:0.26,guard:0.95,shot:0.75,range:150,spread:0.95,bait:0.2,smart:false},
-  {name:'HUSTLER',  desc:'Quick, physical, and they shoot first.', spd:0.96,tackle:0.38,guard:1.1, shot:0.45,range:175,spread:0.7, bait:0.4,smart:false},
-  {name:'CAGE KING',desc:'They read your dodge. Beat them to climb.',spd:1.03,tackle:0.5, guard:1.22,shot:0.3, range:190,spread:0.5, bait:0.55,smart:true}
+  {name:'ROOKIE',   desc:'Slow defenders. Learn the moves.',      spd:0.86,tackle:0.26,guard:0.95,shot:0.75,range:150,spread:0.95,bait:0.2,save:0.4,smart:false},
+  {name:'HUSTLER',  desc:'Quick, physical, and they shoot first.', spd:0.96,tackle:0.38,guard:1.1, shot:0.45,range:175,spread:0.7, bait:0.4,save:0.55,smart:false},
+  {name:'CAGE KING',desc:'They read your dodge. Beat them to climb.',spd:1.03,tackle:0.5, guard:1.22,shot:0.3, range:190,spread:0.5, bait:0.55,save:0.7,smart:true}
 ];
 const TEAM0={spd:0.97,tackle:0.38,guard:1.1,shot:0.4,range:175,spread:0.7,bait:0.4,smart:false};
 let T=TIERS[0];
@@ -250,13 +250,24 @@ function shoot(p, power){
   ball.owner=null; ball.vx=dx*sp; ball.vy=dy*sp; ball.hot=onFire;
   ball.x=p.x+dx*(PR+BR+2); ball.y=p.y+dy*(PR+BR+2);
   p.cd=0.3; ball.last=p.team;
+  if(p.team===0&&!net.on&&!st.tut&&dy<-0.2&&gdist<150){
+    const g=st.gk[1];
+    if(g&&g.lunge<=0){
+      const tt=ball.y/(-dy*sp), xAt=ball.x+dx*sp*tt;
+      if(Math.abs(xAt-W/2)<GW/2+6&&Math.random()<(T.save||0.4)*(onFire?0.6:1)){
+        const sx=xAt-g.x; if(Math.abs(sx)>6){ g.fx=Math.sign(sx); g.fy=0; g.lunge=0.3; g.tr=1.0; }
+      }
+    }
+  }
   if(onFire||power>0.8){ st.stop=0.05; st.shake=Math.max(st.shake,onFire?6:3); }
   sfx(120+power*120,0.1,'square',0.06);
 }
 function passTo(p, t){
-  const tx=t.x+t.vx*0.35, ty=t.y+t.vy*0.35;
+  const d0=Math.hypot(t.x-p.x,t.y-p.y), T0=0.26+d0*0.0009;
+  const tx=Math.max(PR,Math.min(W-PR,t.x+t.vx*T0*0.8)), ty=Math.max(PR,Math.min(H-PR,t.y+t.vy*T0*0.8));
   let dx=tx-p.x, dy=ty-p.y; const d=Math.hypot(dx,dy)||1; dx/=d; dy/=d;
-  const sp=Math.max(230,Math.min(430,150+d*2.1));
+  /* the ball slows by e^-1.08t, so pick the launch speed that covers d in about T0 seconds */
+  const sp=Math.max(240,Math.min(700,d*1.08/(1-Math.exp(-1.08*T0))));
   ball.owner=null; ball.vx=dx*sp; ball.vy=dy*sp;
   ball.x=p.x+dx*(PR+BR+2); ball.y=p.y+dy*(PR+BR+2);
   p.cd=0.28; p.fx=dx; p.fy=dy; ball.last=p.team; ball.hot=false;
@@ -327,7 +338,7 @@ function releaseShoot(){
 
 /* ---------- movement + collisions ---------- */
 function move(p, dt, dx, dy, mul){
-  let sp=122*mul*(st.fire[p.team]>0?1.12:1);
+  let sp=114*mul*(st.fire[p.team]>0?1.12:1);
   if(ball.owner===p) sp*=0.92;
   const burst = p.dash>0 || p.lunge>0;
   if(p.dash>0){ sp=235; if(!dx&&!dy){dx=p.fx;dy=p.fy;} }
@@ -339,7 +350,8 @@ function move(p, dt, dx, dy, mul){
   if(m>0.15&&p.lunge<=0&&p.stun<=0){ p.fx=dx/m; p.fy=dy/m; }
   p.x+=p.vx*dt; p.y+=p.vy*dt;
   p.x=Math.max(PR,Math.min(W-PR,p.x));
-  p.y=Math.max(PR,Math.min(H-PR,p.y));
+  const yl=ball.owner===p?20:PR;
+  p.y=Math.max(yl,Math.min(H-yl,p.y));
 }
 function seek(p,dt,tx,ty,mul,stop=5){
   const dx=tx-p.x, dy=ty-p.y, d=Math.hypot(dx,dy);
@@ -453,6 +465,11 @@ function ai(p,dt,chaser,mul){
       const m=Math.hypot(dx,dy)||1; dx/=m; dy/=m;
     }
     move(p,dt,dx,dy,mul); return;
+  }
+  if(guard&&o&&o.team!==p.team&&Math.hypot(o.x-W/2,o.y-ownY)<78&&!st.tut){
+    const dx=o.x-p.x, dy=o.y-p.y, d=Math.hypot(dx,dy)||1;
+    if(d<34&&p.tr<=0&&p.lunge<=0&&Math.random()<dt*2.2*pr.guard){ p.fx=dx/d; p.fy=dy/d; p.tr=1.3; p.lunge=0.32; }
+    seek(p,dt,o.x,o.y,pr.guard,3); return;
   }
   if(guard){
     const gx=Math.max(W/2-GW/2+8,Math.min(W/2+GW/2-8,ball.x));
@@ -586,7 +603,7 @@ function update(dt){
       for(const p of players){
         if(p.cd>0||p.stun>0) continue;
         const d=Math.hypot(p.x-ball.x,p.y-ball.y);
-        const reach=p.isGuard?PR+BR+17:PR+BR+4;
+        const reach=p.isGuard?PR+BR+(p.lunge>0?27:17):PR+BR+4;
         const maxSp=p.isGuard?(ball.hot?640:800):520;
         if(sp<maxSp&&d<reach&&d<bd){bd=d;best=p;}
       }
@@ -1596,7 +1613,7 @@ window.addEventListener('blur',()=>{ inp.keys={}; inp.shootHeld=false; st.charge
 let last=performance.now();
 function frame(now){
   const real=Math.min(0.033,(now-last)/1000); last=now;
-  let ts=1;
+  let ts=(st.mode==='play'&&st.tier===0&&!st.tut&&!net.on)?0.92:1;
   if(st.stop>0){ st.stop-=real; ts=0; }
   else if(st.freeze>1.3) ts=0.4;
   st.shake*=0.86;
