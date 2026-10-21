@@ -68,7 +68,7 @@ const BODY = '"Barlow Condensed", "Arial Narrow", system-ui, sans-serif';
 
 /* ---------- tiers + progress ---------- */
 const TIERS=[
-  {name:'ROOKIE',   desc:'Slow defenders. Learn the moves.',      spd:0.86,tackle:0.26,guard:0.95,shot:0.75,range:150,spread:0.95,bait:0.2,save:0.4,smart:false},
+  {name:'ROOKIE',   desc:'Slow defenders. Learn the moves.',      spd:0.93,tackle:0.34,guard:1.05,shot:0.75,range:150,spread:0.95,bait:0.2,save:0.55,smart:false},
   {name:'HUSTLER',  desc:'Quick, physical, and they shoot first.', spd:0.96,tackle:0.38,guard:1.1, shot:0.45,range:175,spread:0.7, bait:0.4,save:0.55,smart:false},
   {name:'CAGE KING',desc:'They read your dodge. Beat them to climb.',spd:1.03,tackle:0.5, guard:1.22,shot:0.3, range:190,spread:0.5, bait:0.55,save:0.7,smart:true}
 ];
@@ -156,7 +156,7 @@ function resetKick(kickTeam){
 function startGame(i,chal){
   st.tier=i|0; T=Object.assign({},TIERS[st.tier]); st.unlockMsg=''; st.chalActive=chal||null; st.tut=null; st.onlRes=null;
   /* gentler ROOKIE until the first win (never in a friend challenge) */
-  if(st.tier===0&&!chal&&prog.wins===0&&prog.played<6){ T.spd=0.78; T.tackle=0.16; T.shot=1.2; T.spread=1.15; T.bait=0.1; }
+  if(st.tier===0&&!chal&&prog.wins===0&&prog.played<6){ T.spd=0.78; T.tackle=0.16; T.guard=0.95; T.save=0.4; T.shot=1.2; T.spread=1.15; T.bait=0.1; }
   st.mode='play'; st.t=120; st.score=[0,0]; st.kick=0; st.meter=[0,0]; st.fire=[0,0]; st.shake=0; st.stop=0; st.stats={nut:0,fire:0};
   resetKick(0);
 }
