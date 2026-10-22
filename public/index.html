@@ -103,19 +103,23 @@ function resize(){
   dpr = Math.min(window.devicePixelRatio||1, 2);
   vw = cv.clientWidth; vh = cv.clientHeight;
   cv.width = Math.round(vw*dpr); cv.height = Math.round(vh*dpr);
-  CH = Math.min(210, vh*0.28);
-  const availH = vh - HUD - CH*0.55;
+  CH = Math.min(200, vh*0.26);
+  const r = Math.max(26,Math.min(36, CH*0.19)), R = r*1.3;
+  const sx = vw - R - 14, sy = vh - Math.max(R+10, CH*0.36);
+  UI.shoot = {x:sx, y:sy, r:R};
+  const D=R+r+16, rad=a=>a*Math.PI/180;
+  UI.pass  = {x:sx+Math.cos(rad(172))*D, y:sy+Math.sin(rad(172))*D, r:r};
+  UI.trick = {x:sx+Math.cos(rad(242))*D, y:sy+Math.sin(rad(242))*D, r:r};
+  /* the pitch sits above the highest button (the fence margin may be covered a little) */
+  const topBtn = Math.min(UI.shoot.y-UI.shoot.r, UI.pass.y-UI.pass.r, UI.trick.y-UI.trick.r);
+  const availH = Math.max(vh*0.5, topBtn - HUD + 14);
   sc = Math.min(vw/(W+2*M), availH/(H+2*M));
   ox = (vw - W*sc)/2;
   oy = HUD + (availH - H*sc)/2;
-  const r = Math.min(44, CH*0.22), R = r*1.35;
-  const sx = vw - R - 16, sy = vh - CH*0.42;
-  UI.shoot = {x:sx, y:sy, r:R};
-  const D=R+r+10, rad=a=>a*Math.PI/180;
-  UI.pass  = {x:sx+Math.cos(rad(165))*D, y:sy+Math.sin(rad(165))*D, r:r};
-  UI.trick = {x:sx+Math.cos(rad(235))*D, y:sy+Math.sin(rad(235))*D, r:r};
 }
 window.addEventListener('resize', resize);
+try{ if(window.ResizeObserver) new ResizeObserver(()=>{ if(cv.clientWidth!==vw||cv.clientHeight!==vh) resize(); }).observe(cv); }catch(e){}
+try{ if(window.visualViewport) window.visualViewport.addEventListener('resize',()=>{ if(cv.clientWidth!==vw||cv.clientHeight!==vh) resize(); }); }catch(e){}
 
 /* ---------- audio ---------- */
 let ac = null;
@@ -253,11 +257,13 @@ function shoot(p, power){
   ball.owner=null; ball.vx=dx*sp; ball.vy=dy*sp; ball.hot=onFire;
   ball.x=p.x+dx*(PR+BR+2); ball.y=p.y+dy*(PR+BR+2);
   p.cd=0.3; ball.last=p.team;
-  if(p.team===0&&!net.on&&!st.tut&&dy<-0.2&&gdist<150){
-    const g=st.gk[1];
+  const up=p.team===0;
+  if(!st.tut&&(up?dy<-0.2:dy>0.2)&&gdist<150&&(net.on||up)){
+    const g=st.gk[up?1:0];
     if(g&&g.lunge<=0){
-      const tt=ball.y/(-dy*sp), xAt=ball.x+dx*sp*tt;
-      if(Math.abs(xAt-W/2)<GW/2+6&&Math.random()<(T.save||0.4)*(onFire?0.6:1)){
+      const tt=(up?ball.y:H-ball.y)/(Math.abs(dy)*sp), xAt=ball.x+dx*sp*tt;
+      const sv=net.on?0.5:(T.save||0.4);
+      if(Math.abs(xAt-W/2)<GW/2+6&&Math.random()<sv*(onFire?0.6:1)){
         const sx=xAt-g.x; if(Math.abs(sx)>6){ g.fx=Math.sign(sx); g.fy=0; g.lunge=0.3; g.tr=1.0; }
       }
     }
@@ -321,7 +327,7 @@ function doTrickT(team){
   const c=curOf(team); if(!c||c.tr>0) return;
   c.tr=0.9;
   if(ball.owner===c){ c.dash=0.5; c.inv=0.55; sfx(420,0.12,'sawtooth',0.04); }
-  else { c.lunge=0.32; sfx(160,0.12,'sawtooth',0.04); }
+  else { c.lunge=0.32; if(net.on) c.tr=1.5; sfx(160,0.12,'sawtooth',0.04); }
 }
 function doTrick(){
   if(net.on&&net.role==='guest'){ if(st.mode==='play'){ net.in.tc++; netSendInput(true); } return; }
@@ -389,7 +395,7 @@ function tryTackle(){
       if(o.inv>0&&q.team===1&&T.smart) continue;
       q.tcd=0.8;
       if(o.inv>0) continue;
-      if(Math.random()<(q.lunge>0?0.9:(q.team===1?T.tackle:0.38))) steal(q,o); else q.stun=0.25;
+      if(Math.random()<(q.lunge>0?(net.on?0.6:0.9):(q.team===1?T.tackle:0.38))) steal(q,o); else q.stun=0.25;
       break;
     }
   }
@@ -1093,10 +1099,10 @@ function overlay(){
     }
     ctx.globalAlpha=1;
   } else if(st.mode==='over'&&st.onlRes){
-    const r=st.onlRes, w=r.mine>r.theirs, l=r.mine<r.theirs;
+    const r=st.onlRes, w=r.forfeit||r.mine>r.theirs, l=!r.forfeit&&r.mine<r.theirs;
     txt(w?'YOU WIN':l?'YOU LOSE':'DRAW',cx,vh*0.26,Math.min(64,vw*0.16),w?C.me:l?C.cpu:'#efe9da',DISPLAY,'400');
     txt(r.mine+' - '+r.theirs,cx,vh*0.26+Math.min(84,vw*0.2),Math.min(52,vw*0.13),'#fff',DISPLAY,'400');
-    fitTxt('VS '+(net.peerNick||'OPPONENT'),cx,vh*0.5,20,tw,'rgba(239,233,218,0.7)',BODY,'800');
+    fitTxt(r.forfeit?'YOUR OPPONENT LEFT':'VS '+(net.peerNick||'OPPONENT'),cx,vh*0.5,20,tw,'rgba(239,233,218,0.7)',BODY,'800');
     ctx.globalAlpha=st.menuT>0.6?0.75+0.25*Math.sin(performance.now()/260):0.3;
     txt('TAP TO CONTINUE',cx,vh*0.9,Math.min(28,vw*0.07),'#fff',DISPLAY,'400');
     ctx.globalAlpha=1;
@@ -1395,7 +1401,13 @@ function netMsg(m){
 function netPeerLeft(){
   if(net.state==='over'||net.state==='err') return;
   if(net.role==='host'&&!net.on){ net.state='waiting'; net.peerNick=''; net.cd=0; return; }
-  netFail(net.on?'YOUR OPPONENT LEFT THE MATCH':'THE HOST LEFT THE ROOM');
+  if(net.on){
+    const me=myTeam(), mine=st.score[me]|0, theirs=st.score[1-me]|0;
+    try{ if(net.ws){ net.ws.onclose=net.ws.onerror=net.ws.onmessage=null; net.ws.close(); } }catch(e){}
+    net.ws=null; net.on=false; net.state='over'; st.mode='over'; st.menuT=0; st.onlRes={mine,theirs,forfeit:1};
+    st.charge=0; st.charge1=0; inp.shootHeld=false; inp.joy=null; ptr.clear(); sfx(300,0.4,'sawtooth',0.05); return;
+  }
+  netFail('THE HOST LEFT THE ROOM');
 }
 function hostStart(){
   net.on=true; net.cd=0; net.state='playing';
@@ -1425,7 +1437,7 @@ function netTick(dt){
   const now=performance.now();
   if(net.state==='ready'&&st.mode==='lobby'){ net.cd-=dt; if(net.cd<=0&&net.role==='host') hostStart(); }
   if((net.on||net.state==='ready')&&now-net.lastRx>6000){ netFail('CONNECTION LOST'); return; }
-  if(net.on&&net.role==='host'){ net.sendT-=dt; if(net.sendT<=0){ net.sendT=1/15; nsend(snapshot()); } }
+  if(net.on&&net.role==='host'){ net.sendT-=dt; if(net.sendT<=0){ net.sendT=1/20; nsend(snapshot()); } }
 }
 function ensureGuestWorld(){
   players=[];
@@ -1464,26 +1476,35 @@ function netSendInput(force){
 function guestStep(dt){
   st.msgT-=dt; st.menuT+=dt; st.toastT-=dt;
   const sn=net.snap; if(!sn) return;
-  const age=Math.min(0.15,(performance.now()-net.snapAt)/1000), k=1-Math.exp(-dt*20);
+  const age=Math.min(0.2,(performance.now()-net.snapAt)/1000), k=1-Math.exp(-dt*24);
+  const o=sn.b[4]>=0?players[sn.b[4]]:null;
+  ball.owner=o; ball.hot=!!sn.b[5];
+  let mx=0,my=0;
+  if(inp.joy){ mx=inp.joy.mx; my=inp.joy.my; }
+  else { const kk=inp.keys; mx=(kk.arrowright||kk.d?1:0)-(kk.arrowleft||kk.a?1:0); my=(kk.arrowdown||kk.s?1:0)-(kk.arrowup||kk.w?1:0); const mm=Math.hypot(mx,my); if(mm>1){ mx/=mm; my/=mm; } }
+  net.in.mx=Math.round(mx*100)/100; net.in.my=Math.round(my*100)/100; net.in.sh=inp.shootHeld?1:0;
+  const ci=sn.c[1], moving=Math.hypot(mx,my)>0.15;
   sn.p.forEach((a,i)=>{
     const d=players[i]; if(!d) return;
     const tx=a[0]+a[4]*age, ty=a[1]+a[5]*age;
+    d.stun=a[6]; d.dash=a[7]?0.2:0; d.lunge=a[8]?0.2:0; d.tr=a[9]?0.5:0;
+    if(i===ci&&d.ok&&!d.dash&&!d.lunge&&!d.stun&&Math.hypot(tx-d.x,ty-d.y)<90){
+      /* my own player moves at once on this phone; the host's position only pulls it back when we drift apart */
+      move(d,dt,-net.in.mx,-net.in.my,1.0);
+      const err=Math.hypot(tx-d.x,ty-d.y), kc=moving?(err>45?1-Math.exp(-dt*3):0):1-Math.exp(-dt*8);
+      d.x+=(tx-d.x)*kc; d.y+=(ty-d.y)*kc;
+      return;
+    }
     if(!d.ok||Math.hypot(tx-d.x,ty-d.y)>70){ d.x=tx; d.y=ty; d.ok=1; } else { d.x+=(tx-d.x)*k; d.y+=(ty-d.y)*k; }
-    d.fx=a[2]; d.fy=a[3]; d.vx=a[4]; d.vy=a[5]; d.stun=a[6]; d.dash=a[7]?0.2:0; d.lunge=a[8]?0.2:0; d.tr=a[9]?0.5:0;
+    d.fx=a[2]; d.fy=a[3]; d.vx=a[4]; d.vy=a[5];
   });
-  const o=sn.b[4]>=0?players[sn.b[4]]:null;
-  ball.owner=o; ball.hot=!!sn.b[5];
   if(o){ ball.x=o.x+o.fx*(PR+BR-1); ball.y=o.y+o.fy*(PR+BR-1); ball.vx=o.vx; ball.vy=o.vy; ball.rot+=Math.hypot(o.vx,o.vy)*dt*0.12; }
   else {
     const tx=sn.b[0]+sn.b[2]*age, ty=sn.b[1]+sn.b[3]*age;
     if(Math.hypot(tx-ball.x,ty-ball.y)>80){ ball.x=tx; ball.y=ty; } else { const kb=Math.min(1,k*1.5); ball.x+=(tx-ball.x)*kb; ball.y+=(ty-ball.y)*kb; }
     ball.vx=sn.b[2]; ball.vy=sn.b[3]; ball.rot+=Math.hypot(ball.vx,ball.vy)*dt*0.1;
   }
-  cur=players[sn.c[1]]||players[3];
-  let mx=0,my=0;
-  if(inp.joy){ mx=inp.joy.mx; my=inp.joy.my; }
-  else { const kk=inp.keys; mx=(kk.arrowright||kk.d?1:0)-(kk.arrowleft||kk.a?1:0); my=(kk.arrowdown||kk.s?1:0)-(kk.arrowup||kk.w?1:0); const mm=Math.hypot(mx,my); if(mm>1){ mx/=mm; my/=mm; } }
-  net.in.mx=Math.round(mx*100)/100; net.in.my=Math.round(my*100)/100; net.in.sh=inp.shootHeld?1:0;
+  cur=players[ci]||players[3];
   netSendInput(false);
 }
 function onlineEnd(){
@@ -1506,7 +1527,8 @@ function pickButton(x,y){
   }
   return best;
 }
-function pos(e){ const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
+function pos(e){ const r=cv.getBoundingClientRect(); const sx=r.width?vw/r.width:1, sy=r.height?vh/r.height:1; return {x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; }
+function clearTouches(){ inp.joy=null; if(inp.shootHeld){ inp.shootHeld=false; st.charge=0; } ptr.clear(); }
 cv.addEventListener('pointerdown',e=>{
   e.preventDefault(); audioOn();
   const {x,y}=pos(e);
@@ -1574,7 +1596,8 @@ cv.addEventListener('pointerdown',e=>{
   if(bt==='shoot'){ ptr.set(e.pointerId,'shoot'); inp.shootHeld=true; }
   else if(bt==='pass'){ ptr.set(e.pointerId,'pass'); doPass(); }
   else if(bt==='trick'){ ptr.set(e.pointerId,'trick'); doTrick(); }
-  else if(x<vw*0.5&&y>HUD&&!inp.joy){
+  else if(x<vw*0.5&&y>HUD){
+    for(const [id,t] of Array.from(ptr)) if(t==='joy') ptr.delete(id);
     ptr.set(e.pointerId,'joy'); inp.joy={id:e.pointerId,ox:x,oy:y,mx:0,my:0};
   }
 });
@@ -1596,6 +1619,11 @@ function up(e){
 cv.addEventListener('pointerup',up);
 cv.addEventListener('pointercancel',up);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('lostpointercapture',up);
+window.addEventListener('touchend',e=>{ if(!e.touches||e.touches.length===0) clearTouches(); },{passive:true});
+window.addEventListener('touchcancel',e=>{ if(!e.touches||e.touches.length===0) clearTouches(); },{passive:true});
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) clearTouches(); });
+window.addEventListener('pagehide',clearTouches);
 window.addEventListener('keydown',e=>{
   if(e.target&&e.target.id==='nick'){ if(e.key==='Enter') commitNick(); return; }
   const k=e.key.toLowerCase();
