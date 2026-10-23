@@ -110,12 +110,16 @@ function resize(){
   const D=R+r+16, rad=a=>a*Math.PI/180;
   UI.pass  = {x:sx+Math.cos(rad(172))*D, y:sy+Math.sin(rad(172))*D, r:r};
   UI.trick = {x:sx+Math.cos(rad(242))*D, y:sy+Math.sin(rad(242))*D, r:r};
-  /* the pitch sits above the highest button (the fence margin may be covered a little) */
+  /* the pitch uses all the height unless a button would sit on top of it (then it stops above the buttons) */
   const topBtn = Math.min(UI.shoot.y-UI.shoot.r, UI.pass.y-UI.pass.r, UI.trick.y-UI.trick.r);
-  const availH = Math.max(vh*0.5, topBtn - HUD + 14);
-  sc = Math.min(vw/(W+2*M), availH/(H+2*M));
-  ox = (vw - W*sc)/2;
-  oy = HUD + (availH - H*sc)/2;
+  const fit=availH=>{
+    sc = Math.min(vw/(W+2*M), availH/(H+2*M));
+    ox = (vw - W*sc)/2;
+    oy = HUD + (availH - H*sc)/2;
+  };
+  fit(vh - HUD - 8);
+  const hits=[UI.shoot,UI.pass,UI.trick].some(c=>c.x+c.r+4>ox&&c.x-c.r-4<ox+W*sc&&c.y+c.r+4>oy&&c.y-c.r-4<oy+H*sc);
+  if(hits) fit(Math.max(vh*0.5, topBtn - HUD + 14));
 }
 window.addEventListener('resize', resize);
 try{ if(window.ResizeObserver) new ResizeObserver(()=>{ if(cv.clientWidth!==vw||cv.clientHeight!==vh) resize(); }).observe(cv); }catch(e){}
