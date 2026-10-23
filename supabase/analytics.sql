@@ -33,7 +33,8 @@ begin
   if p_name is null or p_name <> all (array[
     'session','first_open','tut_start','tut_done','tut_skip','first_match_start',
     'first_goal','first_match_end','first_win','second_match_start','first_share','name_set',
-    'match_start','match_end','share_tap','board_open','online_tap']) then
+    'match_start','match_end','share_tap','board_open','online_tap',
+    'online_host','online_join','online_match','online_end']) then
     return;
   end if;
   insert into public.events (device, name, tier, meta)
