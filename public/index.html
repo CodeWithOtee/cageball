@@ -35,6 +35,14 @@ canvas{display:block;width:100%;height:100%;touch-action:none;outline:none;}
   font:800 17px "Barlow Condensed","Arial Narrow",sans-serif;text-align:center;
   -webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto;touch-action:manipulation;}
 #pv[hidden]{display:none;}
+#sg{position:fixed;inset:0;z-index:11;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;box-sizing:border-box;background:rgba(10,12,18,.97);color:#efe9da;font:800 17px "Barlow Condensed","Arial Narrow",sans-serif;text-align:center;touch-action:manipulation;-webkit-user-select:auto;user-select:auto;}
+#sg[hidden]{display:none;}
+#sg h2{margin:0;font:400 28px "Bowlby One",Impact,sans-serif;color:#ffc83d;}
+#sgt{width:90vw;max-width:420px;height:150px;box-sizing:border-box;padding:12px;border-radius:10px;border:2px solid #ffc83d;background:#0f1320;color:#efe9da;font:600 17px "Barlow Condensed",Arial,sans-serif;resize:none;-webkit-user-select:text;user-select:text;outline:none;}
+#sg .row{display:flex;gap:12px;}
+#sg button{min-width:120px;padding:12px 18px;border-radius:12px;border:2px solid rgba(239,233,218,.5);background:#1b2130;color:#fff;font:400 18px "Bowlby One",Impact,sans-serif;}
+#sg button#sgs{border-color:#ffc83d;background:rgba(255,200,61,.16);}
+#sgm{min-height:22px;color:#ffc83d;}
 #pv img{max-width:92vw;max-height:70vh;border-radius:10px;-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto;}
 #pv img[hidden]{display:none;}
 #lnk{width:88vw;max-width:420px;box-sizing:border-box;padding:12px;border-radius:10px;border:2px solid #ffc83d;background:#0f1320;color:#efe9da;font:600 15px ui-monospace,Menlo,monospace;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;}
@@ -50,6 +58,13 @@ canvas{display:block;width:100%;height:100%;touch-action:none;outline:none;}
   <img id="pvimg" alt="Your Cage Ball score card">
   <input id="lnk" readonly hidden aria-label="Challenge link">
   <button id="pvx" type="button">Close</button>
+</div>
+<div id="sg" hidden>
+  <h2>SUGGESTION BOX</h2>
+  <div>What should we add or fix? Tell us what you want from the game.</div>
+  <textarea id="sgt" maxlength="500" placeholder="Type here..." aria-label="Your suggestion"></textarea>
+  <div id="sgm"></div>
+  <div class="row"><button id="sgx" type="button">CLOSE</button><button id="sgs" type="button">SEND</button></div>
 </div>
 <script>
 (() => {
@@ -860,6 +875,7 @@ function mainLayout(){
   for(const k of ['play','online','board']){ L[k]={x,y,w,h:bh}; y+=bh+g; }
   const sw=Math.min(150,(w-g)/2), tot=sw*2+g, sx=(vw-tot)/2;
   L.rec={x:sx,y:y+6,w:sw,h:sh}; L.how={x:sx+sw+g,y:y+6,w:sw,h:sh};
+  L.sug={x:sx,y:y+6+sh+g,w:tot,h:sh};
   L.nick={x:14,y:10,w:Math.min(170,vw-86),h:36};
   L.set={x:vw-14-40,y:10,w:40,h:36};
   return L;
@@ -965,6 +981,7 @@ function overlay(){
     drawGear(L.set);
     smallBtn(L.rec,'RECORDS','#efe9da');
     smallBtn(L.how,'HOW TO PLAY','#efe9da');
+    smallBtn(L.sug,'SUGGESTION BOX',C.me);
   } else if(st.mode==='online'){
     drawBack();
     txt('ONLINE BETA',cx,vh*0.17,Math.min(40,vw*0.105),C.me,DISPLAY,'400');
@@ -1201,6 +1218,18 @@ function commitNick(){
 }
 nickEl.addEventListener('blur',commitNick);
 
+const sgEl=document.getElementById('sg'), sgT=document.getElementById('sgt'), sgM=document.getElementById('sgm'), sgS=document.getElementById('sgs');
+let sgLast=0;
+function openSuggest(){ sgM.textContent=''; sgT.value=''; sgS.disabled=false; sgEl.hidden=false; try{ sgT.focus(); }catch(e){} }
+document.getElementById('sgx').addEventListener('click',()=>{ sgEl.hidden=true; });
+sgS.addEventListener('click',async()=>{
+  const t=sgT.value.trim();
+  if(t.length<3){ sgM.textContent='Write a little more.'; return; }
+  if(Date.now()-sgLast<15000){ sgM.textContent='One moment, then send again.'; return; }
+  sgS.disabled=true; sgM.textContent='Sending...';
+  try{ await rpc('submit_suggestion',{p_device:prog.dev,p_nick:prog.nick||'',p_text:t.slice(0,500)}); sgLast=Date.now(); sgM.textContent='THANK YOU. WE READ EVERY ONE.'; setTimeout(()=>{ sgEl.hidden=true; },1400); }
+  catch(e){ sgM.textContent='Could not send. Try again.'; sgS.disabled=false; }
+});
 const pv=document.getElementById('pv'), pvimg=document.getElementById('pvimg');
 document.getElementById('pvx').addEventListener('click',()=>{ pv.hidden=true; });
 const pvmsg=document.getElementById('pvmsg'), lnk=document.getElementById('lnk');
@@ -1322,7 +1351,7 @@ async function makeCard(){
 }
 
 /* ---------- online 1v1: live friend match (the host's phone runs the game, the guest sends inputs) ---------- */
-const ONLINE_1V1=false;   /* flip to true to open live 1v1 to everyone; ?online=1 opens it for testers */
+const ONLINE_1V1=true;    /* flip to true to open live 1v1 to everyone; ?online=1 opens it for testers */
 const QUICK_MATCH=false;   /* random-opponent queue: flip to true once enough players are online at the same time */
 function quickOn(){ return QUICK_MATCH||/[?&]quick=1(&|$)/.test(location.search); }
 function onlineOn(){ return ONLINE_1V1||/[?&]online=1(&|$)/.test(location.search); }
@@ -1569,6 +1598,7 @@ cv.addEventListener('pointerdown',e=>{
       else if(hit(L.rec,x,y)){ st.mode='records'; st.menuT=0; }
       else if(hit(L.set,x,y)){ st.mode='settings'; st.menuT=0; }
       else if(hit(L.how,x,y)){ st.mode='how'; st.menuT=0; }
+      else if(hit(L.sug,x,y)) openSuggest();
     }
     return;
   }
