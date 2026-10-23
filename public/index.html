@@ -975,7 +975,7 @@ function overlay(){
     wrap('3v3 street football. Two minutes. Most goals wins.',cx,y,tw,24,17,'rgba(239,233,218,0.85)','600');
     const L=mainLayout();
     bigBtn(L.play,'PLAY','Beat the CPU. Climb the levels.',C.me,false,'rgba(255,200,61,0.16)');
-    bigBtn(L.online,'ONLINE',onlineOn()?(quickOn()?'1v1 vs a random player or a friend':'Challenge a friend live (BETA)'):'Coming soon',onlineOn()?'rgba(239,233,218,0.55)':'rgba(239,233,218,0.25)',!onlineOn());
+    bigBtn(L.online,'ONLINE',onlineOn()?(quickOn()?'1v1 vs a random player or a friend':'Challenge a friend live'):'Coming soon',onlineOn()?'rgba(239,233,218,0.55)':'rgba(239,233,218,0.25)',!onlineOn());
     bigBtn(L.board,'LEADERBOARD','See who is winning','rgba(239,233,218,0.55)');
     smallBtn(L.nick,prog.nick||'SET YOUR NAME',C.me);
     drawGear(L.set);
@@ -984,7 +984,7 @@ function overlay(){
     smallBtn(L.sug,'SUGGESTION BOX',C.me);
   } else if(st.mode==='online'){
     drawBack();
-    txt('ONLINE BETA',cx,vh*0.17,Math.min(40,vw*0.105),C.me,DISPLAY,'400');
+    txt('ONLINE',cx,vh*0.17,Math.min(40,vw*0.105),C.me,DISPLAY,'400');
     const O=onlineLayout();
     if(O.quick) bigBtn(O.quick,'QUICK MATCH','1v1 against a random player',C.me,false,'rgba(255,200,61,0.16)');
     bigBtn(O.friend,'CHALLENGE A FRIEND','Send a link. Play them live.',O.quick?'rgba(239,233,218,0.55)':C.me,false,O.quick?undefined:'rgba(255,200,61,0.16)');
